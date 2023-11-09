@@ -1,5 +1,23 @@
 import * as path from "https://deno.land/std@0.205.0/path/mod.ts";
 
+const clientScript = `
+const wsUrl = "{{wsUrl}}";
+
+console.log("[css-reload-server] Connecting to " + wsUrl);
+
+const styleTag = document.createElement("style");
+document.head.appendChild(styleTag);
+
+const conn = new WebSocket(wsUrl);
+conn.onmessage = function (e) {
+  const data = JSON.parse(e.data);
+  if (data.type === "css") {
+    console.log("[css-reload-server] Reloading css");
+    styleTag.innerHTML = data.content;
+  }
+};
+`;
+
 class CssFileWatcher {
   subscriber: ((content: string) => void)[];
   lastModified: number;
@@ -42,48 +60,42 @@ class CssFileWatcher {
   }
 }
 
-main();
-
-async function main() {
-  const cssPathArg = Deno.args[0];
-  if (!cssPathArg) {
-    console.error("Please provide css path");
-    Deno.exit(1);
-  }
-
-  const cssPath = path.resolve(cssPathArg);
-  const clientScriptUrl = import.meta.resolve("./client.js");
-  const clientScript = await Deno.readTextFile(clientScriptUrl);
-
-  const watcher = new CssFileWatcher(cssPath);
-
-  Deno.serve({
-    port: 3010,
-    handler: async (request) => {
-      if (request.headers.get("upgrade") === "websocket") {
-        const { socket, response } = Deno.upgradeWebSocket(request);
-
-        socket.send(
-          JSON.stringify({ type: "css", content: await watcher.read() }),
-        );
-        watcher.subscribe((content) => {
-          socket.send(JSON.stringify({ type: "css", content }));
-        });
-
-        return response;
-      } else {
-        const hostname = request.headers.get("host") || "localhost";
-        const script = clientScript.replace(
-          "{{wsUrl}}",
-          `ws://${hostname}/ws`,
-        );
-        // return `text/javascript`
-        return new Response(script, {
-          headers: {
-            "content-type": "text/javascript",
-          },
-        });
-      }
-    },
-  });
+const cssPathArg = Deno.args[0];
+if (!cssPathArg) {
+  console.error("Please provide css path");
+  Deno.exit(1);
 }
+
+const cssPath = path.resolve(cssPathArg);
+
+const watcher = new CssFileWatcher(cssPath);
+
+Deno.serve({
+  port: 3010,
+  handler: async (request) => {
+    if (request.headers.get("upgrade") === "websocket") {
+      const { socket, response } = Deno.upgradeWebSocket(request);
+
+      socket.send(
+        JSON.stringify({ type: "css", content: await watcher.read() }),
+      );
+      watcher.subscribe((content) => {
+        socket.send(JSON.stringify({ type: "css", content }));
+      });
+
+      return response;
+    } else {
+      const hostname = request.headers.get("host") || "localhost";
+      const script = clientScript.replace(
+        "{{wsUrl}}",
+        `ws://${hostname}/ws`,
+      );
+      // return `text/javascript`
+      return new Response(script, {
+        headers: {
+          "content-type": "text/javascript",
+        },
+      });
+    }
+  },
+});
