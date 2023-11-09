@@ -88,7 +88,7 @@ Deno.serve({
       const hostname = request.headers.get("host") || "localhost";
       const script = clientScript.replace(
         "{{wsUrl}}",
-        `ws://${hostname}/ws`,
+        `ws://${hostname}`,
       );
       // return `text/javascript`
       return new Response(script, {
