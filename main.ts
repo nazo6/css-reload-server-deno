@@ -52,9 +52,8 @@ async function main() {
   }
 
   const cssPath = path.resolve(cssPathArg);
-  const dirname = path.dirname(path.fromFileUrl(import.meta.url));
-  const clientScriptPath = path.resolve(dirname, "client.js");
-  const clientScript = await Deno.readTextFile(clientScriptPath);
+  const clientScriptUrl = import.meta.resolve("./client.js");
+  const clientScript = await Deno.readTextFile(clientScriptUrl);
 
   const watcher = new CssFileWatcher(cssPath);
 
